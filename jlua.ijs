@@ -5,10 +5,11 @@ coclass 'plua'
 lib=: './jlua.so'
 NB. jl-prefix functions are low level, not to be used directly
 jlfuncs =: ".;._2]0 : 0 NB. returns<args (lua_State *==LL for brevity)
-'jlinit *'       NB. LL       <''
-'lua_close n x'  NB. void     <LL
-'jldo i x *c'    NB. int code <LL, command string
-'jltype *c x *c' NB. typename <LL, global var name
+'jlinit *'             NB. LL       <''
+'lua_close n x'        NB. void     <LL
+'lua_setglobal i x *c' NB. int <LL, string
+'jldo i x *c'          NB. int code <LL, command string
+'jltype *c x *c      ' NB. typename <LL, global var name
 )
 NB. 'jlclose i x'     NB. int code <LL
 NB. register all jl-functions

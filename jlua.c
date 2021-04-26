@@ -11,8 +11,6 @@
 #include "lualib.h"
 
 typedef lua_State LL ;
-// J data type names
-const char * JTYPESBLOCK = "tmp={boolean=1, literal=2, integer=4, float=8, complex=16, boxed=32, extended=64, rational=128, sparse_boolean=1024, sparse_literal=2048, sparse_integer=4096, sparse_float=8192, sparse_complex=16384, sparse_boxed=13107, symbol=65536, literal2=131072, literal4=262144}; for k,v in pairs(tmp) do tmp[v]=k end";
 //*
 
 // representation of J values in Lua
@@ -26,7 +24,7 @@ typedef struct JValue {
 
 #define checkJValue(L) (JValue *)luaL_checkudata(L,1,"jsoftware.JValue")
 
-int jval2string (LL *L){ // expects jvalue on stack
+int jljval2string (LL *L){ // expects jvalue on stack
   JValue *v = checkJValue(L);
   lua_pushfstring(L,"Jvalue, %d bytes",lua_rawlen(L,-1)); // prints byte size TODO extend to print type, rank, shape
   return 1;
@@ -40,7 +38,7 @@ static const struct luaL_Reg jlib_f []={
 
 // meta methods of Jvalue go here
 static const struct luaL_Reg jlib_m []={
-  {"__tostring",jval2string},
+  {"__tostring",jljval2string},
   {NULL,NULL}
 };
 
@@ -53,34 +51,22 @@ int luaopen_jlib(LL *L){
 
   luaL_newlib(L, jlib_f);
   // register J types in a table, both as number and reverse
+  // J data type names
+  // TODO optimise out setting and getting the global "tmp"
+  const char * JTYPESBLOCK = "tmp={boolean=1, literal=2, integer=4, float=8, complex=16, boxed=32, extended=64, rational=128, sparse_boolean=1024, sparse_literal=2048, sparse_integer=4096, sparse_float=8192, sparse_complex=16384, sparse_boxed=13107, symbol=65536, literal2=131072, literal4=262144}; for k,v in pairs(tmp) do tmp[v]=k end";
   int err = luaL_dostring(L, JTYPESBLOCK);
   if(err){
     fprintf(stderr, "%s\n", lua_tostring(L,-1));
   };
   lua_getglobal(L,"tmp");
   
-/*  lua_createtable(L,0,17); // TODO: causes immediate segfault.
-  for (int i=0;i<17;++i){
-    lua_pushstring(L,*JTYPENAMES[i]); // name i
-    lua_rawseti(L,-2,JTYPENUM[i]);   // set as types[i]=name i
-    lua_pushinteger(L,JTYPENUM[i]);  // number i
-    lua_setfield(L,-2,*JTYPENAMES[i]);// set types[name i]=i
-  }
-  // TODO: should make read-only table */
+  // TODO: should make read-only table
   lua_setfield(L,-2,"types");
   lua_pushnil(L);		//remove tmp from globals
   lua_setglobal(L,"tmp");
-
   return 1;
 };
 
-// non-exposed function to create userdata from J
-int pushJValue (LL *L, void* str, int len){
-  lua_newuserdata(str,len);
-  luaL_getmetatable(L,"jsoftware.JValue");
-  lua_setmetatable(L,-2);  // set metatable
-  return 1; // 1 new userdatum on the stack
-}
 // */  
 
 // './jlua.so jlinit *' cd ''
@@ -119,6 +105,23 @@ const char* jltype (LL *L, char* var) {
 
 // data from J to Lua
 // for tomorrow.
+// non-exposed function to create userdata from J
+// test in J 
+// foo=: 3!:1]i.2 3 4
+// p=: mema 124 NB. 124-:#foo)
+// foo memw p,0 124
+// (lib, ' jlpushJValue i x x i')cd L, p;124
+// (lib, ' lua_setglobal i x *c') cd L,<'test'
+//  ev'print(test)'
+//  can also be used as i x *c i passing foo directly.
+int jlpushJValue (LL *L, char* str, int len){
+  void* mem;
+  mem=lua_newuserdata(L,len);
+  memcpy(mem,str,len);
+  luaL_getmetatable(L,"jsoftware.JValue");
+  lua_setmetatable(L,-2);  // set metatable
+  return 1; // 1 new userdatum on the stack
+}
 
 /* very basicinterpreter chunk
   char buff[256];
