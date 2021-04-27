@@ -42,32 +42,39 @@ static const struct luaL_Reg jlib_m []={
   {NULL,NULL}
 };
 
-int luaopen_jlib(LL *L){
+int luaopen_jlib(LL *L){ // +1
+  // *** created and populate metatable ****
   luaL_newmetatable(L,"jsoftware.JValue");
   // metatable.__index = metatable
   lua_pushvalue(L,-1);           //duplicate metatable
   lua_setfield(L,-2,"__index");  // 
-  luaL_setfuncs(L,jlib_m,0);     // set metamethod in mtable, no upvalues
-
-  luaL_newlib(L, jlib_f);
+  luaL_setfuncs(L,jlib_m,0);     // set metamethod in mtable on stack top, no upvalues, hence, no change in stack
+  lua_pop(L,1);                  // remove metatable, no longer needed
+  // *** create and populate module/library table *** 
+  luaL_newlib(L, jlib_f);        // s: lib
   // register J types in a table, both as number and reverse
   // J data type names
-  // TODO optimise out setting and getting the global "tmp"
-  const char * JTYPESBLOCK = "tmp={boolean=1, literal=2, integer=4, float=8, complex=16, boxed=32, extended=64, rational=128, sparse_boolean=1024, sparse_literal=2048, sparse_integer=4096, sparse_float=8192, sparse_complex=16384, sparse_boxed=13107, symbol=65536, literal2=131072, literal4=262144}; for k,v in pairs(tmp) do tmp[v]=k end";
-  int err = luaL_dostring(L, JTYPESBLOCK);
+  // Should leave table on stack
+  const char * JTYPESBLOCK = "return {boolean=1, literal=2, integer=4, float=8, complex=16, boxed=32, extended=64, rational=128, sparse_boolean=1024, sparse_literal=2048, sparse_integer=4096, sparse_float=8192, sparse_complex=16384, sparse_boxed=13107, symbol=65536, literal2=131072, literal4=262144}";
+  int err = luaL_dostring(L, JTYPESBLOCK); // s: lib tmp/err
   if(err){
     fprintf(stderr, "%s\n", lua_tostring(L,-1));
-  };
-  lua_getglobal(L,"tmp");
-  
-  // TODO: should make read-only table
-  lua_setfield(L,-2,"types");
-  lua_pushnil(L);		//remove tmp from globals
-  lua_setglobal(L,"tmp");
+  } else { 
+    lua_createtable(L,17,17);             // s: lib tmp rtable : tmp table: No modification during traversal !!! 
+    // traverse table to add reverse lookup
+    lua_pushnil(L); // push first key:       s: lib tmp types nil
+    while (lua_next(L,-3)!= 0){           // s: lib tmp types name code
+      lua_pushvalue(L, -2);               // s: lib tmp types name code name
+      lua_pushvalue(L, -1);               // s: lib tmp types name code name name
+      lua_pushvalue(L, -3);               // s: lib tmp types name code name name code
+      lua_rawset(L,-6);                   // s: lib tmp types name code name
+      lua_rawset(L,-4);                   // s: lib tmp types name
+    }
+    lua_setfield(L,-2,"types");         // s: lib
+  }
+//  const char * JTYPESrev = "; 
   return 1;
 };
-
-// */  
 
 // './jlua.so jlinit *' cd ''
 lua_State * jlinit (void){ // initializo Lua, return pointer to state
